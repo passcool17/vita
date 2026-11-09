@@ -63,24 +63,22 @@
   }
 
   function resize() {
-    const r = wrap.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.max(1, Math.floor(r.width));
-    const h = Math.max(1, Math.floor(r.height));
-    // Give stage flexible height: fill remaining
-    wrap.style.height = Math.max(240, window.innerHeight - 300) + 'px';
+    // Let CSS grid size the stage; only set canvas buffer to the wrap box.
+    // Cap CSS width to the viewport so a prior bad size cannot stick.
+    const maxCssW = Math.max(1, Math.min(wrap.clientWidth || window.innerWidth, window.innerWidth));
     const r2 = wrap.getBoundingClientRect();
-    canvas.width = Math.floor(r2.width * dpr);
-    canvas.height = Math.floor(r2.height * dpr);
-    canvas.style.width = r2.width + 'px';
-    canvas.style.height = r2.height + 'px';
+    const cssW = Math.max(1, Math.min(Math.floor(r2.width), maxCssW));
+    const cssH = Math.max(1, Math.floor(r2.height));
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // Fit sunflower
-    const pad = 18;
     const maxR = Math.sqrt(SUN_N);
-    state.sunScale = Math.min(r2.width, r2.height) * 0.46 / Math.max(1, maxR);
-    state.sunOffX = r2.width / 2;
-    state.sunOffY = r2.height / 2 + 4;
+    state.sunScale = Math.min(cssW, cssH) * 0.46 / Math.max(1, maxR);
+    state.sunOffX = cssW / 2;
+    state.sunOffY = cssH / 2 + 4;
   }
 
   function showInfo(key) {

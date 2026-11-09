@@ -22,61 +22,83 @@
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
-    margin: 0; height: 100%; background: var(--ink); color: var(--paper);
+    margin: 0; width: 100%; max-width: 100%; height: 100%;
+    background: var(--ink); color: var(--paper);
     font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-    overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none;
+    overflow: hidden; overflow-x: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none;
   }
   #app {
     display: grid;
-    grid-template-rows: auto 1fr auto auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%; max-width: 560px; min-width: 0;
     height: 100%; height: 100dvh;
-    max-width: 560px; margin: 0 auto;
+    margin: 0 auto;
+    overflow-x: hidden;
     background: radial-gradient(120% 80% at 50% 0%, #1a140e 0%, var(--ink) 55%);
   }
   header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 12px 6px; gap: 8px;
+    padding: 8px 10px 4px; gap: 8px; min-width: 0;
   }
-  .brand { display: flex; flex-direction: column; min-width: 0; }
+  .brand { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
   .brand h1 {
     margin: 0; font-size: 1.05rem; font-weight: 650; letter-spacing: 0.04em;
     color: var(--gold2);
   }
-  .brand span { font-size: 0.72rem; color: var(--muted); }
+  .brand span {
+    font-size: 0.68rem; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .stats {
-    display: flex; gap: 10px; font-variant-numeric: tabular-nums;
-    font-size: 0.78rem; color: var(--gold);
-    flex-shrink: 0;
+    display: flex; gap: 8px; font-variant-numeric: tabular-nums;
+    font-size: 0.72rem; color: var(--gold); flex-shrink: 0;
   }
   .stats b { color: var(--paper); font-weight: 600; }
   #stage-wrap {
-    position: relative; margin: 0 10px; border-radius: 16px; overflow: hidden;
+    position: relative; margin: 0 8px; border-radius: 14px;
+    overflow: hidden; min-width: 0; width: auto; max-width: 100%;
     border: 1px solid var(--line);
     background:
       radial-gradient(circle at 50% 45%, #1c160f 0%, #0c0a08 70%),
       repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(232,220,200,0.015) 3px, rgba(232,220,200,0.015) 4px);
     box-shadow: inset 0 0 40px rgba(0,0,0,0.55);
   }
-  #stage { display: block; width: 100%; height: 100%; touch-action: none; }
+  #stage { display: block; width: 100%; height: 100%; max-width: 100%; touch-action: none; }
   #info {
-    position: absolute; left: 10px; right: 10px; bottom: 10px;
+    position: absolute; left: 8px; right: 8px; bottom: 8px;
     background: rgba(12,10,8,0.82); border: 1px solid rgba(230,184,77,0.25);
     border-radius: 12px; padding: 8px 10px; backdrop-filter: blur(6px);
-    font-size: 0.72rem; line-height: 1.35; color: var(--paper);
+    font-size: 0.7rem; line-height: 1.35; color: var(--paper);
     pointer-events: none; opacity: 0; transition: opacity .25s;
+    overflow-wrap: anywhere; word-break: break-word;
   }
   #info.show { opacity: 1; }
-  #info strong { color: var(--gold2); display: block; margin-bottom: 2px; font-size: 0.78rem; }
-  .modes, .tools, .presets, .row {
-    display: flex; gap: 6px; padding: 6px 10px; overflow-x: auto;
-    scrollbar-width: none; -ms-overflow-style: none;
+  #info strong { color: var(--gold2); display: block; margin-bottom: 2px; font-size: 0.76rem; }
+  .dock {
+    min-width: 0; max-width: 100%; overflow-x: hidden;
+    padding: 4px 8px calc(8px + var(--safe-b));
+    background: linear-gradient(180deg, transparent, rgba(0,0,0,0.35));
+    display: flex; flex-direction: column; gap: 4px;
   }
-  .modes::-webkit-scrollbar, .tools::-webkit-scrollbar, .presets::-webkit-scrollbar { display: none; }
+  .modes, .tools, .presets, .actions {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    min-width: 0; max-width: 100%;
+  }
+  .presets {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding-bottom: 2px;
+  }
   button, .chip {
     appearance: none; border: 1px solid var(--line); background: var(--ink2);
-    color: var(--paper); border-radius: 999px; padding: 8px 12px;
-    font-size: 0.78rem; font-weight: 550; white-space: nowrap;
+    color: var(--paper); border-radius: 999px; padding: 7px 11px;
+    font-size: 0.74rem; font-weight: 550; white-space: nowrap;
     cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+    flex: 0 0 auto;
   }
   button:active { transform: scale(0.97); }
   button.active, .chip.active {
@@ -89,22 +111,21 @@
     color: #1a1208; border-color: #f0d78c; font-weight: 700;
     min-width: 64px;
   }
-  button.ghost { background: transparent; color: var(--muted); }
-  .dock {
-    padding: 4px 10px calc(10px + var(--safe-b));
-    background: linear-gradient(180deg, transparent, rgba(0,0,0,0.35));
+  .row {
+    display: flex; align-items: center; gap: 8px;
+    min-width: 0; max-width: 100%;
   }
-  .row { align-items: center; justify-content: space-between; padding-top: 2px; padding-bottom: 2px; }
-  .sliders { display: flex; gap: 12px; flex: 1; align-items: center; }
+  .sliders { display: flex; gap: 10px; flex: 1; align-items: center; min-width: 0; }
   .sliders label {
-    display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--muted);
+    display: flex; align-items: center; gap: 6px; font-size: 0.68rem; color: var(--muted);
     flex: 1; min-width: 0;
   }
   .sliders input[type=range] {
-    flex: 1; accent-color: var(--gold); height: 28px;
+    flex: 1; min-width: 0; width: 100%; accent-color: var(--gold); height: 28px;
   }
   .tog {
     display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--muted);
+    flex-shrink: 0; padding: 4px 2px;
   }
   .tog input { accent-color: var(--gold); width: 18px; height: 18px; }
   @media (min-width: 700px) {
@@ -131,21 +152,23 @@
     <div id="info"><strong></strong><span></span></div>
   </div>
 
-  <div class="modes" id="modes">
-    <button type="button" data-mode="grille" class="active">Grille</button>
-    <button type="button" data-mode="tournesol">Tournesol</button>
-    <button type="button" data-mode="triangle">Triangle</button>
-  </div>
-
   <div class="dock">
+    <div class="modes" id="modes">
+      <button type="button" data-mode="grille" class="active">Grille</button>
+      <button type="button" data-mode="tournesol">Tournesol</button>
+      <button type="button" data-mode="triangle">Triangle</button>
+    </div>
     <div class="tools" id="tools">
       <button type="button" class="primary" id="btnPlay">Lecture</button>
       <button type="button" id="btnStep">+1</button>
       <button type="button" data-tool="pinceau" class="active">Pinceau</button>
       <button type="button" data-tool="gomme">Gomme</button>
       <button type="button" data-tool="deplacer">Déplacer</button>
+    </div>
+    <div class="actions" id="actions">
       <button type="button" id="btnRandom">Aléatoire</button>
       <button type="button" id="btnClear">Effacer</button>
+      <label class="tog"><input type="checkbox" id="tore"> Tore</label>
     </div>
     <div class="presets" id="presets">
       <button type="button" data-preset="planeur">Planeur</button>
@@ -161,7 +184,6 @@
         <label>Zoom <input id="zoom" type="range" min="4" max="28" value="12"></label>
         <label>Vitesse <input id="speed" type="range" min="1" max="20" value="8"></label>
       </div>
-      <label class="tog"><input type="checkbox" id="tore"> Tore</label>
     </div>
   </div>
 </div>
