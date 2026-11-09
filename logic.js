@@ -270,6 +270,137 @@
     g[0][mid] = 1;
   }
 
+
+  // ——— Untangled (John Daniel 2026) ———
+  // Deux sources +1 / −1 ; croisements = cellules 1..28 ; rangée n a n cellules.
+  // Totaux = nombres triangulaires T_n = n(n+1)/2.
+
+  function triangularNumber(n) {
+    return (n * (n + 1)) / 2;
+  }
+
+  /** Cellules du tableau : n=1..T_rows, rangée 1-based, col 0-based. */
+  function untangledCells(rows) {
+    rows = rows || 7;
+    const cells = [];
+    let n = 1;
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 0; c < r; c++) {
+        cells.push({
+          n: n,
+          row: r,
+          col: c,
+          // géométrie relative : apex (0,0), rangée r à y=r-1, centrée
+          x: c - (r - 1) / 2,
+          y: r - 1
+        });
+        n++;
+      }
+    }
+    return cells;
+  }
+
+  /** Sources +1 (haut-gauche) et −1 (haut-droite) du dessin. */
+  function untangledSources(rows) {
+    rows = rows || 7;
+    const half = (rows - 1) / 2;
+    return {
+      plus1: { x: -half - 0.8, y: -1.2, label: '+1' },
+      minus1: { x: half + 0.8, y: -1.2, label: '−1' }
+    };
+  }
+
+  /**
+   * Colonie Untangled.
+   * Règle (v1.2) : croissance par rangées triangulaires.
+   * - Départ : apex = cellule nº1 → population 1.
+   * - Chaque pas ajoute toute la rangée suivante (n cellules au pas n) → pop T_n.
+   * - À T_7=28 : colonie complète ; le prochain pas ensemence un nouvel apex
+   *   (repart à 1) — « split » du tableau.
+   * Conway B3/S23 reste le moteur hors mode Untangled ; en mode Untangled,
+   * les naissances Conway sont remplacées par cette agenda, et la survie
+   * Conway s'applique seulement aux cellules hors de la structure protégée.
+   */
+  function createUntangledColony(ox, oy, rows) {
+    rows = rows || 7;
+    const cells = untangledCells(rows);
+    return {
+      ox: ox || 0,
+      oy: oy || 0,
+      rows: rows,
+      cells: cells,
+      sources: untangledSources(rows),
+      /** rangée atteinte (0 = vide, 1 = apex seul, … 7 = complet) */
+      reached: 0,
+      /** numéros vivants dans la structure */
+      alive: new Set(),
+      generation: 0
+    };
+  }
+
+  function untangledPopulation(colony) {
+    return colony.alive.size;
+  }
+
+  /** Un pas de croissance triangulaire. Retourne la population après le pas. */
+  function stepUntangledGrowth(colony) {
+    if (colony.reached >= colony.rows) {
+      // Split : nouvel apex, on repart
+      colony.alive = new Set();
+      colony.reached = 0;
+    }
+    const nextRow = colony.reached + 1;
+    for (const cell of colony.cells) {
+      if (cell.row === nextRow) colony.alive.add(cell.n);
+    }
+    colony.reached = nextRow;
+    colony.generation++;
+    return colony.alive.size;
+  }
+
+  /** Populations attendues : 1,3,6,10,15,21,28 */
+  function untangledPopulationSequence(rows) {
+    rows = rows || 7;
+    const seq = [];
+    for (let r = 1; r <= rows; r++) seq.push(triangularNumber(r));
+    return seq;
+  }
+
+  /** Tamponne la colonie (rangées 1..reached) sur une grille. */
+  function stampUntangledColony(grid, colony, age) {
+    age = age || 1;
+    const scale = 2; // 1 unité géométrique = 2 cellules pour aérer
+    for (const cell of colony.cells) {
+      if (!colony.alive.has(cell.n)) continue;
+      const gx = Math.round(colony.ox + cell.x * scale);
+      const gy = Math.round(colony.oy + cell.y * scale);
+      if (gy >= 0 && gy < grid.length && gx >= 0 && gx < grid[0].length) {
+        grid[gy][gx] = age + (cell.n % 5);
+      }
+    }
+  }
+
+  /** Dessin exact du tableau (toutes les 28 cellules + métadonnées de rayons). */
+  function createFullUntangledDrawing(ox, oy) {
+    const colony = createUntangledColony(ox, oy, 7);
+    for (let i = 0; i < 7; i++) stepUntangledGrowth(colony);
+    return colony;
+  }
+
+  /** Applique Conway puis réimpose les naissances Untangled planifiées (hybride). */
+  function stepGridWithUntangled(grid, wrap, colony) {
+    // 1) Conway classique
+    const next = stepGrid(grid, wrap);
+    // 2) Protéger / forcer les cellules de la structure selon reached
+    //    D'abord un pas de croissance triangulaire
+    stepUntangledGrowth(colony);
+    // Effacer puis restamper la structure (fidélité au tableau)
+    // On n'efface pas toute la grille : on restampe par-dessus
+    stampUntangledColony(next, colony, 1);
+    return next;
+  }
+
+
   const INFO = {
     grille: {
       title: 'Grille de Conway',
@@ -289,7 +420,8 @@
     gosper: { title: 'Pistolet de Gosper', body: 'Premier canon à planeurs découvert (1970). Produit un planeur toutes les 30 générations.' },
     gland: { title: 'Gland (acorn)', body: 'Methuselah : 7 cellules qui évoluent pendant 5206 générations avant de se stabiliser.' },
     tore: { title: 'Tore', body: 'Les bords se rejoignent : haut↔bas et gauche↔droite, comme à la surface d’un beigne.' },
-    fibo: { title: 'Fibonacci & Kepler', body: 'Kepler a noté que les graines de tournesol s’organisent en spirales Fibonacci grâce à l’angle d’or, un remplissage optimal de l’espace.' }
+    fibo: { title: 'Fibonacci & Kepler', body: 'Kepler a noté que les graines de tournesol s’organisent en spirales Fibonacci grâce à l’angle d’or, un remplissage optimal de l’espace.' },
+    untangled: { title: 'Untangled (croissance triangulaire)', body: 'Deux sources +1 et −1 envoient des rayons ; chaque croisement est une cellule. On grandit par rangées : 1, puis +2, +3… jusqu’à 28 (7ᵉ nombre triangulaire). Ensuite la colonie ensemence un nouvel apex.' }
   };
 
   const api = {
@@ -299,6 +431,10 @@
     phyllotaxisPoints, buildNeighbourLists, stepGraph,
     fibonacciUpTo, estimateParastichies,
     pascalRow, stampPascal, stepRule90, seedRule90,
+    triangularNumber, untangledCells, untangledSources,
+    createUntangledColony, untangledPopulation, stepUntangledGrowth,
+    untangledPopulationSequence, stampUntangledColony,
+    createFullUntangledDrawing, stepGridWithUntangled,
     INFO
   };
 

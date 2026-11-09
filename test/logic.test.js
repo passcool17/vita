@@ -105,5 +105,34 @@ function assert(cond, msg) {
   assert(p.pair[0] > 0 && p.pair[1] > p.pair[0], 'paire de parastiches');
 }
 
+// --- Untangled : populations 1,3,6,10,15,21,28 depuis une graine ---
+{
+  const c = V.createUntangledColony(0, 0, 7);
+  assert(V.untangledPopulation(c) === 0, 'colonie vide au départ');
+  const got = [];
+  for (let i = 0; i < 7; i++) got.push(V.stepUntangledGrowth(c));
+  const want = V.untangledPopulationSequence(7);
+  assert(got.join(',') === want.join(','), 'suite triangulaire ' + got.join(','));
+  assert(got.join(',') === '1,3,6,10,15,21,28', 'suite exacte 1..28');
+  assert(c.alive.has(1) && c.alive.has(28), 'apex et coin 28 vivants');
+  // split : 8e pas repart à 1
+  const after = V.stepUntangledGrowth(c);
+  assert(after === 1 && c.reached === 1 && c.alive.has(1) && !c.alive.has(28), 'split → nouvel apex');
+}
+
+// --- Géométrie : 7 rangées, rangée n a n cellules, numérotation 1..28 ---
+{
+  const cells = V.untangledCells(7);
+  assert(cells.length === 28, '28 cellules');
+  for (let r = 1; r <= 7; r++) {
+    const row = cells.filter((c) => c.row === r);
+    assert(row.length === r, 'rangée ' + r + ' a ' + r + ' cellules');
+  }
+  assert(cells[0].n === 1 && cells[0].x === 0 && cells[0].y === 0, 'apex nº1 en (0,0)');
+  assert(V.triangularNumber(7) === 28, 'T_7 = 28');
+  const src = V.untangledSources(7);
+  assert(src.plus1.x < 0 && src.minus1.x > 0, 'sources +1 gauche / −1 droite');
+}
+
 if (failed) { console.error(failed + ' échec(s)'); process.exit(1); }
 console.log('Tous les tests passent.');

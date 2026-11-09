@@ -39,7 +39,11 @@
     // triangle / rule90 uses grid too
     triangleMod: 2,
     lastTick: 0,
-    infoTimer: 0
+    infoTimer: 0,
+    // Untangled
+    untangledOn: true,
+    showRays: true,
+    colony: null
   };
 
   function initSun() {
@@ -60,6 +64,24 @@
     }
     const p = V.estimateParastichies(SUN_N);
     elPara.textContent = p.pair[0] + '/' + p.pair[1];
+  }
+
+  function ensureColony(ox, oy) {
+    if (!state.colony) {
+      state.colony = V.createUntangledColony(
+        ox != null ? ox : Math.floor(GW / 2),
+        oy != null ? oy : 4,
+        7
+      );
+    }
+    return state.colony;
+  }
+
+  function resetColonyGrowth() {
+    const c = ensureColony();
+    c.alive = new Set();
+    c.reached = 0;
+    c.generation = 0;
   }
 
   function resize() {
@@ -246,7 +268,87 @@
   function draw() {
     if (state.mode === 'tournesol') drawSun();
     else drawGrid();
+    if (state.showRays && state.untangledOn) drawUntangledOverlay();
     updateStats();
+  }
+
+  function worldToScreenGrid(x, y) {
+    const z = state.zoom;
+    const scale = 2;
+    const gx = state.colony.ox + x * scale;
+    const gy = state.colony.oy + y * scale;
+    return {
+      px: (gx - state.camX) * z + z / 2,
+      py: (gy - state.camY) * z + z / 2
+    };
+  }
+
+  function worldToScreenSun(x, y) {
+    // Map tableau coords into sunflower disc (normalized)
+    const c = state.colony;
+    const maxY = Math.max(1, c.rows - 1);
+    const nx = x / (maxY + 1);
+    const ny = y / (maxY + 1);
+    return {
+      px: state.sunOffX + nx * state.sunScale * Math.sqrt(SUN_N) * 0.85,
+      py: state.sunOffY - state.sunScale * Math.sqrt(SUN_N) * 0.55 + ny * state.sunScale * Math.sqrt(SUN_N) * 1.1
+    };
+  }
+
+  function drawUntangledOverlay() {
+    const c = ensureColony();
+    const toScreen = state.mode === 'tournesol' ? worldToScreenSun : worldToScreenGrid;
+    const src = c.sources;
+    const pPlus = toScreen(src.plus1.x, src.plus1.y);
+    const pMinus = toScreen(src.minus1.x, src.minus1.y);
+
+    ctx.save();
+    ctx.lineWidth = 1;
+    // Rayons +1 (ambre) et −1 (encre claire)
+    for (const cell of c.cells) {
+      const p = toScreen(cell.x, cell.y);
+      ctx.strokeStyle = 'rgba(230,184,77,0.18)';
+      ctx.beginPath(); ctx.moveTo(pPlus.px, pPlus.py); ctx.lineTo(p.px, p.py); ctx.stroke();
+      ctx.strokeStyle = 'rgba(232,220,200,0.12)';
+      ctx.beginPath(); ctx.moveTo(pMinus.px, pMinus.py); ctx.lineTo(p.px, p.py); ctx.stroke();
+    }
+    // Sources
+    for (const [pt, label, col] of [[pPlus, '+1', '#e6b84d'], [pMinus, '−1', '#e8dcc8']]) {
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(pt.px, pt.py, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '600 11px IBM Plex Sans, sans-serif';
+      ctx.fillText(label, pt.px + 7, pt.py + 4);
+    }
+    // Numéros sur cellules vivantes (ou toutes si reached complet / preset)
+    ctx.font = '600 9px IBM Plex Sans, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const cell of c.cells) {
+      if (c.reached > 0 && cell.row > c.reached) continue;
+      const p = toScreen(cell.x, cell.y);
+      const live = c.alive.has(cell.n);
+      ctx.fillStyle = live ? 'rgba(12,10,8,0.9)' : 'rgba(232,220,200,0.35)';
+      if (live || state.showRays) {
+        if (live) {
+          ctx.beginPath();
+          ctx.arc(p.px, p.py, Math.max(7, state.mode === 'tournesol' ? 8 : state.zoom * 0.35), 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(230,184,77,0.9)';
+          ctx.fill();
+          ctx.fillStyle = '#1a1208';
+        }
+        ctx.fillText(String(cell.n), p.px, p.py + 0.5);
+      }
+    }
+    // Diagonale épaisse +1 → 28
+    const a = c.cells.find((x) => x.n === 1);
+    const b = c.cells.find((x) => x.n === 28);
+    if (a && b) {
+      const pa = toScreen(a.x, a.y), pb = toScreen(b.x, b.y);
+      ctx.strokeStyle = 'rgba(230,184,77,0.45)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(pPlus.px, pPlus.py); ctx.lineTo(pa.px, pa.py); ctx.lineTo(pb.px, pb.py); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function updateStats() {
@@ -263,7 +365,9 @@
   }
 
   function stepOnce() {
-    if (state.mode === 'tournesol') {
+    if (state.untangledOn) {
+      stepUntangledOnce();
+    } else if (state.mode === 'tournesol') {
       const next = V.stepGraph(state.sunAlive, state.sunAges, state.sunNeigh);
       state.sunAlive = next.alive;
       state.sunAges = next.ages;
@@ -273,6 +377,30 @@
       state.grid = V.stepGrid(state.grid, state.wrap);
     }
     state.gen++;
+  }
+
+  /** Pas Untangled : croissance triangulaire 1→3→…→28, puis split. */
+  function stepUntangledOnce() {
+    const c = ensureColony();
+    V.stepUntangledGrowth(c);
+    if (state.mode === 'tournesol') {
+      // Activer les T_n premières graines (ordre spiral = nº Untangled)
+      state.sunAlive.fill(0);
+      state.sunAges.fill(0);
+      for (const cell of c.cells) {
+        if (!c.alive.has(cell.n)) continue;
+        const i = Math.min(SUN_N - 1, cell.n - 1);
+        state.sunAlive[i] = 1;
+        state.sunAges[i] = 1 + (cell.row % 7);
+      }
+    } else {
+      // Grille / Triangle : restamper la colonie (Conway naissances remplacées)
+      // Garder un fond éventuel, mais la structure Untangled domine
+      V.stampUntangledColony(state.grid, c, 1);
+      if (state.mode === 'triangle' && c.reached === 1) {
+        // amorce aussi Rule90 au besoin
+      }
+    }
   }
 
   function tick(ts) {
@@ -486,6 +614,27 @@
     const b = e.target.closest('button[data-preset]');
     if (!b) return;
     const name = b.dataset.preset;
+    if (name === 'untangled') {
+      setMode(state.mode === 'tournesol' ? 'tournesol' : 'grille');
+      document.getElementById('untangled').checked = true;
+      document.getElementById('rays').checked = true;
+      state.untangledOn = true;
+      state.showRays = true;
+      state.colony = V.createUntangledColony(Math.floor(GW / 2), 3, 7);
+      // Animer 1→28 : on part de 0, lecture fera les pas ; tamponner apex
+      V.clearGrid(state.grid);
+      V.stepUntangledGrowth(state.colony); // pop=1
+      V.stampUntangledColony(state.grid, state.colony, 1);
+      if (state.mode === 'tournesol') {
+        state.sunAlive.fill(0); state.sunAges.fill(0);
+        state.sunAlive[0] = 1; state.sunAges[0] = 1;
+      }
+      state.gen = 0;
+      state.camX = Math.max(0, state.colony.ox - 8);
+      state.camY = Math.max(0, state.colony.oy - 2);
+      showInfo('untangled');
+      return;
+    }
     if (name === 'pascal' || name === 'pascal5') {
       setMode('grille');
       document.querySelectorAll('#modes button').forEach((x) => x.classList.toggle('active', x.dataset.mode === 'grille'));
@@ -515,6 +664,13 @@
     state.wrap = e.target.checked;
     if (state.wrap) showInfo('tore');
   });
+  document.getElementById('untangled').addEventListener('change', (e) => {
+    state.untangledOn = e.target.checked;
+    if (state.untangledOn) showInfo('untangled');
+  });
+  document.getElementById('rays').addEventListener('change', (e) => {
+    state.showRays = e.target.checked;
+  });
 
   function setMode(mode) {
     state.mode = mode;
@@ -543,14 +699,18 @@
     draw,
     resize,
     paintGrid,
+    ensureColony,
     getAlive: () => state.mode === 'tournesol'
       ? state.sunAlive.reduce((a, b) => a + b, 0)
       : V.countAlive(state.grid)
   };
 
   initSun();
-  // nice opening: Gosper-ish small stamp + random
-  V.randomizeGrid(state.grid, 0.22);
+  ensureColony(Math.floor(GW / 2), 4);
+  // nice opening: léger aléatoire + apex Untangled
+  V.randomizeGrid(state.grid, 0.12);
+  V.stepUntangledGrowth(state.colony);
+  V.stampUntangledColony(state.grid, state.colony, 1);
   window.addEventListener('resize', resize);
   resize();
   showInfo('grille');
